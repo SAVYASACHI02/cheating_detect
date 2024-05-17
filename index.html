@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Face Detection</title>
+</head>
+<body>
+    <h1>Webcam Live Feed</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+    <script>
+        const video = document.getElementById('video');
+
+        // Get access to the webcam
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                })
+                .catch(function(error) {
+                    console.log("Something went wrong!");
+                });
+        }
+
+        // Function to capture frame and send to backend
+        function captureFrameAndSend() {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert canvas to Blob
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('frame', blob, 'frame.jpg');
+
+                    fetch('http://localhost:5000/detect_faces', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(`Number of faces detected: ${data.num_of_faces}`);
+                        // Wait for response before capturing next frame
+                        setTimeout(captureFrameAndSend, 5000);
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        // Retry capturing next frame after 5 seconds if there's an error
+                        setTimeout(captureFrameAndSend, 5000);
+                    });
+                } else {
+                    console.error('Blob creation failed.');
+                    setTimeout(captureFrameAndSend, 5000);
+                }
+            }, 'image/jpeg');
+        }
+
+        // Start the process
+        captureFrameAndSend();
+    </script>
+</body>
+</html>
